@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dots and Boxes Game</title>
+    <style>
+        /* General Body and Layout Styles */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5; /* Neutral background */
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Main Menu Styling */
+        #main-menu {
+            text-align: center;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+
+        #main-menu h1 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 1em;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #007aff;
+            box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+        }
+
+        #start-game-btn {
+            background-color: #007aff; /* Blue for a modern feel */
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+
+        #start-game-btn:hover {
+            background-color: #005ecb;
+        }
+
+        /* Game Container Styling */
+        #game-container {
+            display: none;
+            text-align: center;
+        }
+
+        #game-board {
+            /* The board is now a transparent container for absolutely positioned elements */
+            position: relative;
+            margin: 20px auto;
+            /* No background color */
+        }
+
+        .dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #444; /* Dark gray dots */
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 3; /* Dots are on top of everything */
+        }
+
+        .line {
+            position: absolute;
+            background-color: #ccc; /* Subtle gray for un-colored lines */
+            cursor: pointer;
+            z-index: 2; /* Lines are above fills, below dots */
+            transition: background-color 0.2s;
+        }
+
+        .line:hover {
+            background-color: #a0a0a0; /* Darken on hover for clear selection */
+        }
+
+        .line.horizontal { height: 4px; width: 50px; left: 5px; transform: translateY(-50%); }
+        .line.vertical   { width: 4px; height: 50px; top: 5px; transform: translateX(-50%); }
+        
+        /* The colored line completely replaces the subtle gray */
+        .line.colored { cursor: not-allowed; }
+        .line.colored.white { background-color: #FFFFFF; border: 1px solid #ddd; box-sizing: border-box;}
+        .line.colored.red   { background-color: #e53e3e; } /* Softer Red */
+
+        .square-fill {
+            position: absolute;
+            /* Dimensions are calculated to fit perfectly inside the lines */
+            width: 52px;
+            height: 52px;
+            z-index: 1; /* Fills are behind lines and dots */
+        }
+        
+        /* Solid, even fill colors. No opacity. */
+        .square-fill.white { background-color: #e6e6fa; } /* Lavender, soft white */
+        .square-fill.red   { background-color: #fed7d7; } /* Softer Red fill */
+
+
+        #game-info {
+            margin-top: 20px;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        #win-message {
+            margin-top: 20px;
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #28a745;
+            height: 50px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="main-menu">
+        <h1>Dots and Boxes</h1>
+        <div class="form-group">
+            <label for="grid-x">Grid Width (x):</label>
+            <input type="number" id="grid-x" value="4" min="2" max="10">
+        </div>
+        <div class="form-group">
+            <label for="grid-y">Grid Height (y):</label>
+            <input type="number" id="grid-y" value="4" min="2" max="10">
+        </div>
+        <div class="form-group">
+            <label for="rules">Game Rules:</label>
+            <select id="rules">
+                <option value="standard">Standard (extra turn on square)</option>
+                <option value="balanced">Balanced (opponent gets 2 turns on square)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="start-color">First Player:</label>
+            <select id="start-color">
+                <option value="white">White</option>
+                <option value="red">Red</option>
+            </select>
+        </div>
+        <button id="start-game-btn" onclick="startGame()">Start Game</button>
+    </div>
+
+    <div id="game-container">
+        <div id="game-board"></div>
+        <div id="game-info">Current Turn: <span id="current-player-display"></span></div>
+        <div id="win-message" role="alert"></div>
+    </div>
+
+    <script>
+        const mainMenu = document.getElementById('main-menu');
+        const gameContainer = document.getElementById('game-container');
+        const gameBoard = document.getElementById('game-board');
+        const currentPlayerDisplay = document.getElementById('current-player-display');
+        const winMessageDiv = document.getElementById('win-message');
+
+        const CELL_SIZE = 60; // The dimension of one cell area
+        let x, y, rules, startColor;
+        let currentPlayer;
+        let cells;
+        let whiteScore = 0;
+        let redScore = 0;
+        let totalLines;
+        let coloredLines = 0;
+        let isGameOver = false;
+        let opponentExtraTurns = 0;
+
+        function startGame() {
+            x = parseInt(document.getElementById('grid-x').value);
+            y = parseInt(document.getElementById('grid-y').value);
+            rules = document.getElementById('rules').value;
+            startColor = document.getElementById('start-color').value;
+
+            currentPlayer = startColor;
+            mainMenu.style.display = 'none';
+            gameContainer.style.display = 'block';
+
+            setupGameBoard();
+            updateGameInfo();
+        }
+
+        function setupGameBoard() {
+            gameBoard.innerHTML = '';
+            winMessageDiv.textContent = '';
+            whiteScore = 0;
+            redScore = 0;
+            coloredLines = 0;
+            isGameOver = false;
+            opponentExtraTurns = 0;
+            totalLines = (x * (y + 1)) + (y * (x + 1));
+
+            gameBoard.style.width = `${x * CELL_SIZE}px`;
+            gameBoard.style.height = `${y * CELL_SIZE}px`;
+            
+            cells = Array(y).fill(null).map(() => Array(x).fill(null).map(() => ({
+                top: false, right: false, bottom: false, left: false, owner: null
+            })));
+
+            // Add all dots
+            for (let r = 0; r <= y; r++) {
+                for (let c = 0; c <= x; c++) {
+                    addDot(r, c);
+                }
+            }
+
+            // Add all lines
+            for (let r = 0; r < y; r++) {
+                for (let c = 0; c < x; c++) {
+                    if (r === 0) addLine(0, c, 'horizontal');
+                    addLine(r + 1, c, 'horizontal');
+                    if (c === 0) addLine(r, 0, 'vertical');
+                    addLine(r, c + 1, 'vertical');
+                }
+            }
+        }
+
+        function addDot(row, col) {
+            const dot = document.createElement('div');
+            dot.classList.add('dot');
+            dot.style.top = `${row * CELL_SIZE}px`;
+            dot.style.left = `${col * CELL_SIZE}px`;
+            gameBoard.appendChild(dot);
+        }
+        
+        // This function uses a Set to avoid adding duplicate lines
+        const addedLines = new Set();
+        function addLine(row, col, orientation) {
+            const key = `${row}-${col}-${orientation}`;
+            if (addedLines.has(key)) return;
+
+            const line = document.createElement('div');
+            line.classList.add('line', orientation);
+            
+            if (orientation === 'horizontal') {
+                line.style.top = `${row * CELL_SIZE}px`;
+                line.style.left = `${col * CELL_SIZE}px`;
+                line.dataset.row = row;
+                line.dataset.col = col;
+            } else { // vertical
+                line.style.top = `${row * CELL_SIZE}px`;
+                line.style.left = `${col * CELL_SIZE}px`;
+                line.dataset.row = row;
+                line.dataset.col = col;
+            }
+            
+            line.dataset.orientation = orientation;
+            line.addEventListener('click', handleLineClick);
+            gameBoard.appendChild(line);
+            addedLines.add(key);
+        }
+
+        function handleLineClick(event) {
+            if (isGameOver) return;
+
+            const line = event.target;
+            if (line.classList.contains('colored')) return;
+
+            line.classList.add('colored', currentPlayer);
+            line.removeEventListener('click', handleLineClick);
+            coloredLines++;
+            
+            let squaresCompletedThisTurn = 0;
+            const orientation = line.dataset.orientation;
+            const row = parseInt(line.dataset.row);
+            const col = parseInt(line.dataset.col);
+
+            if (orientation === 'horizontal') {
+                if (row > 0 && row <= y) {
+                    cells[row - 1][col].bottom = true;
+                    if (checkForSquare(row - 1, col)) {
+                        fillSquare(row - 1, col);
+                        squaresCompletedThisTurn++;
+                    }
+                }
+                if (row < y) {
+                    cells[row][col].top = true;
+                    if (checkForSquare(row, col)) {
+                        fillSquare(row, col);
+                        squaresCompletedThisTurn++;
+                    }
+                }
+            } else { // vertical
+                if (col > 0 && col <= x) {
+                    cells[row][col - 1].right = true;
+                    if (checkForSquare(row, col - 1)) {
+                        fillSquare(row, col - 1);
+                        squaresCompletedThisTurn++;
+                    }
+                }
+                if (col < x) {
+                    cells[row][col].left = true;
+                    if (checkForSquare(row, col)) {
+                        fillSquare(row, col);
+                        squaresCompletedThisTurn++;
+                    }
+                }
+            }
+
+            if (checkWinCondition()) return;
+
+            if (squaresCompletedThisTurn > 0) {
+                if (rules === 'standard') {
+                    // Don't switch player
+                } else { // balanced
+                    opponentExtraTurns = 2;
+                    switchPlayer();
+                }
+            } else {
+                 if(opponentExtraTurns > 0) {
+                     opponentExtraTurns--;
+                     if(opponentExtraTurns === 0) switchPlayer();
+                 } else {
+                    switchPlayer();
+                 }
+            }
+            updateGameInfo();
+        }
+        
+        function checkForSquare(r, c) {
+            return cells[r][c].top && cells[r][c].right && cells[r][c].bottom && cells[r][c].left;
+        }
+
+        function fillSquare(r, c) {
+            cells[r][c].owner = currentPlayer;
+            if (currentPlayer === 'white') whiteScore++; else redScore++;
+            
+            const squareFill = document.createElement('div');
+            squareFill.classList.add('square-fill', currentPlayer);
+            // Position the fill inside the lines
+            squareFill.style.top = `${r * CELL_SIZE + 4}px`;
+            squareFill.style.left = `${c * CELL_SIZE + 4}px`;
+            gameBoard.appendChild(squareFill);
+        }
+        
+        function switchPlayer() {
+            currentPlayer = (currentPlayer === 'white') ? 'red' : 'white';
+        }
+
+        function updateGameInfo() {
+            const color = currentPlayer === 'white' ? '#444' : '#e53e3e';
+            currentPlayerDisplay.innerHTML = `<span style="color: ${color};">${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)}</span>`;
+        }
+
+        function checkWinCondition() {
+            const totalCells = x * y;
+            let winner = null;
+
+            if (whiteScore > totalCells / 2) winner = 'White';
+            else if (redScore > totalCells / 2) winner = 'Red';
+            else if (coloredLines === totalLines) {
+                if (whiteScore > redScore) winner = 'White';
+                else if (redScore > whiteScore) winner = 'Red';
+                else winner = 'Draw';
+            }
+
+            if (winner) {
+                if (winner === 'Draw') {
+                    winMessageDiv.textContent = "It's a draw!";
+                    winMessageDiv.style.color = '#333';
+                } else {
+                    winMessageDiv.textContent = `${winner} won!`;
+                    winMessageDiv.style.color = winner === 'White' ? '#007aff' : '#e53e3e';
+                }
+                endGame();
+                return true;
+            }
+            return false;
+        }
+        
+        function endGame() {
+            isGameOver = true;
+            gameBoard.style.cursor = 'not-allowed';
+        }
+    </script>
+</body>
+</html>
